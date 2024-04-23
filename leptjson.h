@@ -20,6 +20,7 @@ typedef struct {
 } lept_value;
 
 // 解析函数返回值
+// 在非法值错误和空格后面还有值之间优先返回非法值错误
 enum {
     LEPT_PARSE_OK = 0, // 解析成功
     LEPT_PARSE_EXPECT_VALUE, // 全部是空格
@@ -32,6 +33,11 @@ static void lept_parse_whitespace(lept_content* c);
 
 // 解析null类型json串
 static int lept_parse_null(lept_content* c, lept_value* v);
+
+// 解析true类型json串
+static int lept_parse_true(lept_content* c, lept_value* v);
+
+static int lept_parse_false(lept_content* c, lept_value* v);
 
 // 解析json串，被主函数lept_parse调用
 static int lept_parse_value(lept_content* c, lept_value* v);
