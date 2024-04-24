@@ -18,6 +18,15 @@ static int test_pass = 0;
 
 #define EXPECT_EQ_INT(expect, actual) EXPECT_EQ_BASE((expect) == (actual), expect, actual, "%d")
 
+// 合并错误检测
+#define TEST_ERROR(error, json) \
+    do { \
+        lept_value v; \
+        v.type = LEPT_FALSE; \
+        EXPECT_EQ_INT(error, lept_parse(&v, json)); \
+        EXPECT_EQ_INT(LEPT_NULL, get_lept_type(&v)); \
+    } while (0)
+
 // 测试解析null类型
 static void test_parse_null() {
     lept_value v;
@@ -59,41 +68,20 @@ static void test_parse_false() {
 
 // 测试解析全空类型错误
 static void test_parse_expect_value() {
-    lept_value v;
-
-    v.type = LEPT_FALSE;
-    EXPECT_EQ_INT(LEPT_PARSE_EXPECT_VALUE, lept_parse(&v, ""));
-    EXPECT_EQ_INT(LEPT_NULL, get_lept_type(&v));
-
-    v.type = LEPT_FALSE;
-    EXPECT_EQ_INT(LEPT_PARSE_EXPECT_VALUE, lept_parse(&v, " "));
-    EXPECT_EQ_INT(LEPT_NULL, get_lept_type(&v));
+    TEST_ERROR(LEPT_PARSE_EXPECT_VALUE, "");
+    TEST_ERROR(LEPT_PARSE_EXPECT_VALUE, " \n\t\r");
 }
 
 // 测试非法值错误
 static void test_parse_invalid_value() {
-    lept_value v;
-
-    v.type = LEPT_FALSE;
-    EXPECT_EQ_INT(LEPT_PARSE_INVALID_VALUE, lept_parse(&v, "nul"));
-    EXPECT_EQ_INT(LEPT_NULL, get_lept_type(&v));
-
-    v.type = LEPT_FALSE;
-    EXPECT_EQ_INT(LEPT_PARSE_INVALID_VALUE, lept_parse(&v, "?"));
-    EXPECT_EQ_INT(LEPT_NULL, get_lept_type(&v));
-
-    v.type = LEPT_FALSE;
-    EXPECT_EQ_INT(LEPT_PARSE_INVALID_VALUE, lept_parse(&v, "n? null"));
-    EXPECT_EQ_INT(LEPT_NULL, get_lept_type(&v));
+    TEST_ERROR(LEPT_PARSE_INVALID_VALUE, "nul");
+    TEST_ERROR(LEPT_PARSE_INVALID_VALUE, "?");
+    TEST_ERROR(LEPT_PARSE_INVALID_VALUE, "nu? x");
 }
 
 // 测试空格后面有值错误
 static void test_parse_root_not_singular() {
-    lept_value v;
-
-    v.type = LEPT_FALSE;
-    EXPECT_EQ_INT(LEPT_PARSE_ROOT_NOT_SINGULAR, lept_parse(&v, "null x"));
-    EXPECT_EQ_INT(LEPT_NULL, get_lept_type(&v));
+    TEST_ERROR(LEPT_PARSE_ROOT_NOT_SINGULAR, "null x");
 }
 
 // 综合测试

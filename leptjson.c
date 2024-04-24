@@ -40,37 +40,24 @@ int lept_parse(lept_value* v, const char* json) {
 
 static int lept_parse_value(lept_content* c, lept_value* v) {
     switch(*c->json) {
-        case 'n': return lept_parse_null(c, v);
-        case 't': return lept_parse_true(c, v);
-        case 'f': return lept_parse_false(c, v);
+        case 'n': return lept_parse_literal(c, v, "null", LEPT_NULL);
+        case 't': return lept_parse_literal(c, v, "true", LEPT_TRUE);
+        case 'f': return lept_parse_literal(c, v, "false", LEPT_FALSE);
         case '\0': return LEPT_PARSE_EXPECT_VALUE;
         default: return LEPT_PARSE_INVALID_VALUE;
     }
 }
 
-static int lept_parse_null(lept_content* c, lept_value* v) {
-    EXPECT(c, 'n');
-    if (c->json[0] != 'u' || c->json[1] != 'l' || c->json[2] != 'l')
-        return LEPT_PARSE_INVALID_VALUE;
-    c->json += 3;
-    return LEPT_PARSE_OK;
-}
-
-static int lept_parse_true(lept_content* c, lept_value* v) {
-    EXPECT(c, 't');
-    if (c->json[0] != 'r' || c->json[1] != 'u' || c->json[2] != 'e')
-        return LEPT_PARSE_INVALID_VALUE;
-    c->json += 3;
-    v->type = LEPT_TRUE;
-    return LEPT_PARSE_OK;
-}
-
-static int lept_parse_false(lept_content* c, lept_value* v) {
-    EXPECT(c, 'f');
-    if (c->json[0] != 'a' || c->json[1] != 'l' || c->json[2] != 's' || c->json[3] != 'e')
-        return LEPT_PARSE_INVALID_VALUE;
-    c->json += 4;
-    v->type = LEPT_FALSE;
+static int lept_parse_literal(lept_content* c, lept_value* v, const char* literal, lept_type type) {
+    EXPECT(c, literal[0]);
+    int index = 1;
+    while (literal[index] != '\0') {
+        if (c->json[index] != literal[index])
+            return LEPT_PARSE_INVALID_VALUE;
+        index++;
+    }
+    c->json += index;
+    v->type = type;
     return LEPT_PARSE_OK;
 }
 
