@@ -46,7 +46,9 @@ enum {
     LEPT_PARSE_NUMBER_TOO_BIG, // 解析数字太大
     LEPT_PARSE_MISS_QUOTATION_MARK, // 字符串没有没有右引号
     LEPT_PARSE_INVALID_STRING_ESCAPE, // 不合法转移字符
-    LEPT_PARSE_INVALID_STRING_CHAR // 不合法字符
+    LEPT_PARSE_INVALID_STRING_CHAR, // 不合法字符
+    LEPT_PARSE_INVALID_UNICODE_HEX, // 不合法unicode字符
+    LEPT_PARSE_INVALID_UNICODE_SURROGATE
 };
 
 // 主要解析函数
@@ -96,6 +98,9 @@ static int lept_parse_string(lept_content* c, lept_value* v);
 
 static void* lept_content_push(lept_content* c, size_t len);
 static void* lept_content_pop(lept_content* c, size_t len);
+
+static const char* lept_parse_hex4(const char* p, unsigned* u); 
+static void lept_encode_utf8(lept_content* c, const unsigned u);
 
 
 #endif
