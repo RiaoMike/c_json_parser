@@ -24,17 +24,23 @@ typedef struct {
     size_t size, top; // 栈大小以及栈顶
 } lept_content;
 
+typedef struct lept_value lept_value;
+
 // json解析树节点
-typedef struct {
+struct lept_value {
     union {
+        struct {
+            lept_value* array;
+            size_t array_size;
+        };
         struct {
             char* s;
             size_t len;
-    }; // useful only when type --> LEPT_STRING
+        }; // useful only when type --> LEPT_STRING
         double n; // useful only when type --> LEPT_NUMBER
     };
     lept_type type;
-} lept_value;
+};
 
 // 解析函数返回值
 // 在非法值错误和空格后面还有值之间优先返回非法值错误
@@ -48,7 +54,8 @@ enum {
     LEPT_PARSE_INVALID_STRING_ESCAPE, // 不合法转移字符
     LEPT_PARSE_INVALID_STRING_CHAR, // 不合法字符
     LEPT_PARSE_INVALID_UNICODE_HEX, // 不合法unicode字符
-    LEPT_PARSE_INVALID_UNICODE_SURROGATE
+    LEPT_PARSE_INVALID_UNICODE_SURROGATE,
+    LEPT_PARSE_MISS_COMMA_OR_SQUARE_BRACKET
 };
 
 // 主要解析函数
@@ -77,6 +84,10 @@ size_t lept_get_string_length(const lept_value* v);
 // 将缓冲区字符串压入lept_value
 void lept_set_string(lept_value* v, const char* c, size_t len);
 
+// array类型函数
+size_t lept_get_array_size(const lept_value* v);
+lept_value* lept_get_array_element(const lept_value* v, size_t index);
+
 // static function
 static void lept_parse_whitespace(lept_content* c);
 
@@ -101,6 +112,8 @@ static void* lept_content_pop(lept_content* c, size_t len);
 
 static const char* lept_parse_hex4(const char* p, unsigned* u); 
 static void lept_encode_utf8(lept_content* c, const unsigned u);
+
+static int lept_parse_array(lept_content* c, lept_value* v);
 
 
 #endif
