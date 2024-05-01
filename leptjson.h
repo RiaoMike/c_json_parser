@@ -25,10 +25,15 @@ typedef struct {
 } lept_content;
 
 typedef struct lept_value lept_value;
+typedef struct lept_member lept_member;
 
 // json解析树节点
 struct lept_value {
     union {
+        struct {
+            lept_member* object;
+            size_t object_size;
+        };
         struct {
             lept_value* array;
             size_t array_size;
@@ -40,6 +45,13 @@ struct lept_value {
         double n; // useful only when type --> LEPT_NUMBER
     };
     lept_type type;
+};
+
+// 对象的键值对
+struct lept_member {
+    char* key;
+    size_t key_len;
+    lept_value v;
 };
 
 // 解析函数返回值
@@ -55,7 +67,10 @@ enum {
     LEPT_PARSE_INVALID_STRING_CHAR, // 不合法字符
     LEPT_PARSE_INVALID_UNICODE_HEX, // 不合法unicode字符
     LEPT_PARSE_INVALID_UNICODE_SURROGATE,
-    LEPT_PARSE_MISS_COMMA_OR_SQUARE_BRACKET
+    LEPT_PARSE_MISS_COMMA_OR_SQUARE_BRACKET,
+    LEPT_PARSE_MISS_KEY,
+    LEPT_PARSE_MISS_COLON,
+    LEPT_PARSE_MISS_COMMA_OR_CURLY_BRACKET
 };
 
 // 主要解析函数
@@ -88,6 +103,12 @@ void lept_set_string(lept_value* v, const char* c, size_t len);
 size_t lept_get_array_size(const lept_value* v);
 lept_value* lept_get_array_element(const lept_value* v, size_t index);
 
+// object类型函数
+size_t lept_get_object_size(const lept_value* v);
+const char* lept_get_object_key(const lept_value* v, size_t index);
+size_t lept_get_object_key_length(const lept_value* v, size_t index);
+lept_value* lept_get_object_value(const lept_value* v, size_t index);
+
 // static function
 static void lept_parse_whitespace(lept_content* c);
 
@@ -97,6 +118,9 @@ static int lept_parse_literal(lept_content* c, lept_value* v, const char* litera
 
 static int lept_parse_number(lept_content* c, lept_value* v);
 
+// 获取字符串的指针以及长度
+static int lept_parse_string_raw(lept_content* c, char** str, size_t* size);
+// 将raw获取的字符串及其长度存入lept_value中
 static int lept_parse_string(lept_content* c, lept_value* v);
 
 // 第一次分配缓存空间时的大小
@@ -115,5 +139,6 @@ static void lept_encode_utf8(lept_content* c, const unsigned u);
 
 static int lept_parse_array(lept_content* c, lept_value* v);
 
+static int lept_parse_object(lept_content* c, lept_value* v);
 
 #endif

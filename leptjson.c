@@ -43,6 +43,16 @@ void lept_free(lept_value* v) {
             free(v->array);
             break;
         }
+        case LEPT_OBJECT: {
+            for (i = 0; i < lept_get_object_size(v); i++) {
+                free(v->object[i].key);
+                free(&v->object[i]);
+            }
+            free(v->object);
+            break;
+        }
+        default:
+            break;
     }
     v->type = LEPT_NULL;
 }
@@ -105,6 +115,29 @@ lept_value* lept_get_array_element(const lept_value* v, size_t index) {
     return v->array + index;
 }
 
+size_t lept_get_object_size(const lept_value* v) {
+    assert(lept_get_type(v) == LEPT_OBJECT);
+    return v->object_size;
+}
+
+const char* lept_get_object_key(const lept_value* v, size_t index) {
+    assert(lept_get_type(v) == LEPT_OBJECT);
+    assert(index < v->object_size);
+    return v->object[index].key;
+}
+
+size_t lept_get_object_key_length(const lept_value* v, size_t index) {
+    assert(lept_get_type(v) == LEPT_OBJECT);
+    assert(index < v->object_size);
+    return v->object[index].key_len;
+}
+
+lept_value* lept_get_object_value(const lept_value* v, size_t index) {
+    assert(lept_get_type(v) == LEPT_OBJECT);
+    assert(index < v->object_size);
+    return &v->object[index].v;
+}
+
 // !!注意下面代码是错误的，野指针，即使经常写代码也容易犯这种错误
 // 不要使用未初始化的指针
 // int lept_parse(lept_value* v, const char* json) {
@@ -133,6 +166,7 @@ static int lept_parse_value(lept_content* c, lept_value* v) {
         case 'f': return lept_parse_literal(c, v, "false", LEPT_FALSE);
         case '\"': return lept_parse_string(c, v);
         case '[': return lept_parse_array(c, v);
+        case '{': return lept_parse_object(c, v);
         case '\0': return LEPT_PARSE_EXPECT_VALUE;
         default: return lept_parse_number(c, v);
     }
@@ -192,17 +226,17 @@ static int lept_parse_number(lept_content* c, lept_value* v) {
 
 #define STRING_ERROR(error) do { c->top = old_top; return error; } while (0)
 
-static int lept_parse_string(lept_content* c, lept_value* v) {
+static int lept_parse_string_raw(lept_content* c, char** str, size_t* size) {
     EXPECT(c, '\"');
     const char* p = c->json;
     p++;
-    size_t old_top = c->top, length;
+    size_t old_top = c->top;
     while (1) {
         char ch = *p++;
         switch(ch) {
             case '\"':
-                length = c->top - old_top;
-                lept_set_string(v, (const char*)lept_content_pop(c, length), length);
+                *size = c->top - old_top;
+                *str = (char*)lept_content_pop(c, *size);
                 c->json = p;
                 return LEPT_PARSE_OK;
             case '\0':
@@ -261,6 +295,15 @@ static int lept_parse_string(lept_content* c, lept_value* v) {
                 PUTC(c, ch);
         }
     }
+}
+
+static int lept_parse_string(lept_content* c, lept_value* v) {
+    int ret;
+    char* ch;
+    size_t size;
+    if ((ret = lept_parse_string_raw(c, &ch, &size)) == LEPT_PARSE_OK)
+        lept_set_string(v, ch, size);
+    return ret;
 }
 
 static void* lept_content_push(lept_content* c, size_t len) {
@@ -324,6 +367,7 @@ static void lept_encode_utf8(lept_content* c, const unsigned u) {
 static int lept_parse_array(lept_content* c, lept_value* v) {
     size_t size = 0; // size of array
     int ret; // 整体解析结果
+    lept_value e;
     EXPECT(c, '[');
     c->json++;
     lept_parse_whitespace(c);
@@ -336,7 +380,6 @@ static int lept_parse_array(lept_content* c, lept_value* v) {
         return LEPT_PARSE_OK;
     }
     while (1) {
-        lept_value e;
         lept_init(&e);
         // 解析该值
         if ((ret = lept_parse_value(c, &e)) != LEPT_PARSE_OK)
@@ -365,5 +408,80 @@ static int lept_parse_array(lept_content* c, lept_value* v) {
     size_t i;
     for (i = 0; i < size; i++) 
         lept_free((lept_value*)lept_content_pop(c, sizeof(lept_value)));
+    return ret;
+}
+
+static int lept_parse_object(lept_content* c, lept_value* v) {
+    size_t size = 0, i;
+    int ret;
+    lept_member m;
+    lept_member* release;
+    EXPECT(c, '{');
+    c->json++;
+    lept_parse_whitespace(c);
+    if (*c->json == '}') {
+        c->json++;
+        v->object_size = 0;
+        v->object = NULL;
+        v->type = LEPT_OBJECT;
+        return LEPT_PARSE_OK;
+    }
+    while (1) {
+        // 初始化lept_member
+        m.key = NULL;
+        m.key_len = 0;
+        lept_init(&m.v);
+        char* tmp;
+        if (*c->json != '\"') {
+            ret = LEPT_PARSE_MISS_KEY;
+            break;
+        }
+        if ((ret = lept_parse_string_raw(c, &tmp, &m.key_len)) != LEPT_PARSE_OK)
+            break;
+        // 键解析成功， 给m的键分配内存
+        m.key = (char*)malloc(m.key_len + 1);
+        memcpy(m.key, tmp, m.key_len);
+        m.key[m.key_len] = '\0';
+        lept_parse_whitespace(c);
+        if (*c->json == ':') {
+            c->json++;
+            lept_parse_whitespace(c);
+        }
+        else {
+            ret = LEPT_PARSE_MISS_COLON;
+            free(m.key);
+            break;
+        }
+        if ((ret = lept_parse_value(c, &m.v)) != LEPT_PARSE_OK) {
+            free(m.key);
+            break;
+        }
+        // 值解析成功
+        memcpy(lept_content_push(c, sizeof(lept_member)), &m, sizeof(lept_member));
+        size++;
+        lept_parse_whitespace(c);
+        // 下一个键值对
+        if (*c->json == ',') {
+            c->json++;
+            lept_parse_whitespace(c);
+        }
+        else if (*c->json == '}') {
+            c->json++;
+            v->object_size = size;
+            size *= sizeof(lept_member);
+            memcpy(v->object = (lept_member*)malloc(size), lept_content_pop(c, size), size);
+            v->type = LEPT_OBJECT;
+            return LEPT_PARSE_OK;
+        }
+        else {
+            ret = LEPT_PARSE_MISS_COMMA_OR_CURLY_BRACKET;
+            break;
+        }
+    }
+    // 解析失败，释放之前的内存
+    for (i = 0; i < size; i++) {
+        release = (lept_member*)lept_content_pop(c, sizeof(lept_member));
+        free(release->key);
+    }
     return ret;
 }
